@@ -2,6 +2,7 @@
 // Types
 // ---------------------------------------------------------------------------
 import { chatApi } from "../../api/modules/chat";
+import type { IAgentScopeRuntimeWebUIRef } from "@agentscope-ai/chat";
 export type CopyableContent = {
   type?: string;
   text?: string;
@@ -187,6 +188,59 @@ export function toDisplayUrl(url: string | undefined): string {
 // ---------------------------------------------------------------------------
 // DOM utilities
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Timestamp utilities
+// ---------------------------------------------------------------------------
+
+/** Extract created_at from a backend message's metadata. */
+export function getMessageCreatedAt(
+  msg: Record<string, unknown> | null | undefined,
+): number | string | undefined {
+  const meta = msg?.metadata as { created_at?: number | string } | undefined;
+  return meta?.created_at;
+}
+
+/** Extract completed_at from a backend message's metadata. */
+export function getMessageCompletedAt(
+  msg: Record<string, unknown> | null | undefined,
+): number | string | undefined {
+  const outer = msg?.metadata as Record<string, unknown> | undefined;
+  const inner = outer?.metadata as { completed_at?: number | string } | undefined;
+  return inner?.completed_at;
+}
+
+/** Build a MessageTimestamp card object. */
+export function createTimestampCard(
+  createdAt: number | string,
+): { code: string; data: { created_at: number | string } } {
+  return { code: "MessageTimestamp", data: { created_at: createdAt } };
+}
+
+/**
+ * Patch the last user message in the current session with a timestamp card.
+ * Safe to call multiple times — skips messages that already have one.
+ */
+export function patchLastUserMessageWithTimestamp(
+  chatRef: { current: IAgentScopeRuntimeWebUIRef | null },
+): void {
+  const msgs = chatRef.current?.messages?.getMessages() || [];
+  const lastUserMsg = [...msgs].reverse().find((m) => m.role === "user");
+  if (!lastUserMsg) return;
+
+  const alreadyPatched = lastUserMsg.cards?.some(
+    (c) => c.code === "MessageTimestamp",
+  );
+  if (alreadyPatched) return;
+
+  chatRef.current?.messages?.updateMessage({
+    id: lastUserMsg.id,
+    cards: [
+      ...(lastUserMsg.cards || []),
+      createTimestampCard(Math.floor(Date.now() / 1000)),
+    ],
+  });
+}
 
 /** Set textarea value and trigger input event for React state sync.
  * Uses native value setter to bypass React's internal value tracker.

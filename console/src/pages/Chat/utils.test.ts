@@ -2,6 +2,9 @@ import { describe, it, test, expect, vi } from "vitest";
 import {
   extractCopyableText,
   extractUserMessageText,
+  getMessageCreatedAt,
+  getMessageCompletedAt,
+  createTimestampCard,
   buildModelError,
   toStoredName,
   normalizeContentUrls,
@@ -241,5 +244,86 @@ describe("toDisplayUrl", () => {
     expect(toDisplayUrl("file:///uploads/img.png")).toBe(
       "http://localhost:8000/uploads/img.png",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getMessageCreatedAt
+// ---------------------------------------------------------------------------
+describe("getMessageCreatedAt", () => {
+  it("extracts created_at from metadata", () => {
+    const msg = { metadata: { created_at: 1710000000 } };
+    expect(getMessageCreatedAt(msg)).toBe(1710000000);
+  });
+
+  it("handles string timestamps", () => {
+    const msg = { metadata: { created_at: "2026-05-26 19:30:48.149" } };
+    expect(getMessageCreatedAt(msg)).toBe("2026-05-26 19:30:48.149");
+  });
+
+  it("returns undefined when metadata is missing", () => {
+    expect(getMessageCreatedAt({})).toBeUndefined();
+  });
+
+  it("returns undefined when created_at is not set", () => {
+    const msg = { metadata: {} };
+    expect(getMessageCreatedAt(msg)).toBeUndefined();
+  });
+
+  it("returns undefined for null/undefined input", () => {
+    expect(getMessageCreatedAt(null)).toBeUndefined();
+    expect(getMessageCreatedAt(undefined)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getMessageCompletedAt
+// ---------------------------------------------------------------------------
+describe("getMessageCompletedAt", () => {
+  it("extracts completed_at from nested metadata", () => {
+    const msg = {
+      metadata: { metadata: { completed_at: "2026-05-26 19:30:51.191" } },
+    };
+    expect(getMessageCompletedAt(msg)).toBe("2026-05-26 19:30:51.191");
+  });
+
+  it("returns undefined when outer metadata is missing", () => {
+    expect(getMessageCompletedAt({})).toBeUndefined();
+  });
+
+  it("returns undefined when inner metadata is missing", () => {
+    const msg = { metadata: {} };
+    expect(getMessageCompletedAt(msg)).toBeUndefined();
+  });
+
+  it("returns undefined when completed_at is not set", () => {
+    const msg = { metadata: { metadata: {} } };
+    expect(getMessageCompletedAt(msg)).toBeUndefined();
+  });
+
+  it("returns undefined for null/undefined input", () => {
+    expect(getMessageCompletedAt(null)).toBeUndefined();
+    expect(getMessageCompletedAt(undefined)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createTimestampCard
+// ---------------------------------------------------------------------------
+describe("createTimestampCard", () => {
+  it("builds correct card structure with number timestamp", () => {
+    const card = createTimestampCard(1710000000);
+    expect(card).toEqual({
+      code: "MessageTimestamp",
+      data: { created_at: 1710000000 },
+    });
+  });
+
+  it("builds correct card structure with string timestamp", () => {
+    const card = createTimestampCard("2026-05-26 19:30:48.149");
+    expect(card).toEqual({
+      code: "MessageTimestamp",
+      data: { created_at: "2026-05-26 19:30:48.149" },
+    });
   });
 });

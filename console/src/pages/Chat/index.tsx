@@ -28,6 +28,10 @@ import { IconButton } from "@agentscope-ai/design";
 import ChatActionGroup from "./components/ChatActionGroup";
 import ChatHeaderTitle from "./components/ChatHeaderTitle";
 import ChatSessionInitializer from "./components/ChatSessionInitializer";
+import MessageTimestamp from "./components/MessageTimestamp";
+import {
+  patchLastUserMessageWithTimestamp,
+} from "./utils";
 import { ApprovalCard } from "../../components/ApprovalCard/ApprovalCard";
 import { commandsApi } from "../../api/modules/commands";
 import { useApprovalContext } from "../../contexts/ApprovalContext";
@@ -999,6 +1003,9 @@ export default function ChatPage() {
         ...buildAuthHeaders(),
       };
 
+      // Add timestamp to the user message that was just created
+      patchLastUserMessageWithTimestamp(chatRef);
+
       try {
         const activeModels = await providerApi.getActiveModels({
           scope: "effective",
@@ -1261,6 +1268,9 @@ export default function ChatPage() {
       },
       customToolRenderConfig:
         Object.keys(toolRenderConfig).length > 0 ? toolRenderConfig : undefined,
+      cards: {
+        MessageTimestamp: MessageTimestamp as React.FC<any>,
+      },
       actions: {
         list: [
           {
@@ -1271,6 +1281,13 @@ export default function ChatPage() {
             ),
             onClick: ({ data }: { data: CopyableResponse }) => {
               void copyResponse(data);
+            },
+          },
+          {
+            render: ({ data: wrapper }: any) => {
+              const completed_at = wrapper?.data?.completed_at;
+              if (!completed_at) return null;
+              return <MessageTimestamp data={{ created_at: completed_at }} />;
             },
           },
         ],

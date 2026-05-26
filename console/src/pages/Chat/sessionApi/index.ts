@@ -9,7 +9,7 @@ import api, {
   type ChatStatus,
   type Message,
 } from "../../../api";
-import { toDisplayUrl } from "../utils";
+import { toDisplayUrl, getMessageCreatedAt, getMessageCompletedAt, createTimestampCard } from "../utils";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -166,25 +166,31 @@ const toOutputMessage = (msg: Message): OutputMessage => ({
 });
 
 /** Build a user card (AgentScopeRuntimeRequestCard) from a user message. */
-function buildUserCard(msg: Message): IAgentScopeRuntimeWebUIMessage {
+function buildUserCard(msg: Message, createdAt?: number | string): IAgentScopeRuntimeWebUIMessage {
   const contentParts = contentToRequestParts(msg.content);
+  const cards: IAgentScopeRuntimeWebUIMessage["cards"] = [
+    {
+      code: "AgentScopeRuntimeRequestCard",
+      data: {
+        input: [
+          {
+            role: "user",
+            type: "message",
+            content: contentParts,
+          },
+        ],
+      },
+    },
+  ];
+
+  if (createdAt) {
+    cards.push(createTimestampCard(createdAt));
+  }
+
   return {
     id: (msg.id as string) || generateId(),
     role: "user",
-    cards: [
-      {
-        code: "AgentScopeRuntimeRequestCard",
-        data: {
-          input: [
-            {
-              role: "user",
-              type: "message",
-              content: contentParts,
-            },
-          ],
-        },
-      },
-    ],
+    cards,
   };
 }
 
@@ -194,8 +200,11 @@ function buildUserCard(msg: Message): IAgentScopeRuntimeWebUIMessage {
  */
 const buildResponseCard = (
   outputMessages: OutputMessage[],
+  createdAt?: number | string,
+  completedAt?: number | string,
 ): IAgentScopeRuntimeWebUIMessage => {
-  const now = Math.floor(Date.now() / 1000);
+  const startTime = createdAt;
+  const endTime = completedAt ?? createdAt;
   const maxSeq = outputMessages.reduce(
     (max, m) => Math.max(max, m.sequence_number || 0),
     0,
@@ -217,10 +226,10 @@ const buildResponseCard = (
           output: normalizedMessages,
           object: "response",
           status: "completed",
-          created_at: now,
+          created_at: startTime,
           sequence_number: maxSeq + 1,
           error: null,
-          completed_at: now,
+          completed_at: endTime,
           usage: null,
         },
       },
@@ -245,13 +254,21 @@ const convertMessages = (
 
   while (i < messages.length) {
     if (messages[i].role === ROLE_USER) {
-      result.push(buildUserCard(messages[i++]));
+      result.push(buildUserCard(messages[i++], getMessageCreatedAt(messages[i - 1])));
     } else {
       const outputMsgs: OutputMessage[] = [];
       while (i < messages.length && messages[i].role !== ROLE_USER) {
         outputMsgs.push(toOutputMessage(messages[i++]));
       }
-      if (outputMsgs.length) result.push(buildResponseCard(outputMsgs));
+      if (outputMsgs.length) {
+        result.push(
+          buildResponseCard(
+            outputMsgs,
+            getMessageCreatedAt(outputMsgs[0]),
+            getMessageCompletedAt(outputMsgs[outputMsgs.length - 1]),
+          ),
+        );
+      }
     }
   }
 

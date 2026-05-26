@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Coroutine
 
@@ -942,6 +943,15 @@ class AgentRunner(Runner):
                         len(new_messages) if new_messages else 0,
                         session_id,
                     )
+
+                # Stamp the last Msg with the response completion time so
+                # the frontend can display the same timestamp after refresh.
+                if agent is not None and agent.memory is not None:
+                    mem_content = agent.memory.content
+                    if mem_content:
+                        mem_content[-1][0].metadata["completed_at"] = (
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                        )
 
                 await self.session.save_session_state(
                     session_id=session_id,
